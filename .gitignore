@@ -1,0 +1,7 @@
+# Compiled binary
+/muster
+
+# Test / coverage artifacts
+*.out
+*.test
+coverage.*

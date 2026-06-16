@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: build (static)
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o muster .
+
+      - name: confirm static binary
+        run: |
+          file muster
+          if ldd muster 2>/dev/null | grep -q '=>'; then
+            echo "ERROR: binary is dynamically linked; the static-binary goal is broken." >&2
+            exit 1
+          fi
+          echo "binary is static"
+
+      - name: test
+        run: go test -race ./...
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  image:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build image
+        run: docker build -t muster:ci .
